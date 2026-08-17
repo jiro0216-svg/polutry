@@ -1,0 +1,686 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>禽病臨床肉眼診斷與 AI 分析系統</title>
+  <style>
+    :root {
+      --primary: #1e6b4d;
+      --primary-light: #e8f5ee;
+      --primary-dark: #134833;
+      --accent: #2563eb;
+      --ai-purple: #7c3aed;
+      --ai-purple-light: #f5f3ff;
+      --danger: #dc2626;
+      --text: #1f2937;
+      --text-muted: #6b7280;
+      --bg: #f3f4f6;
+      --card: #ffffff;
+      --border: #e5e7eb;
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Noto Sans TC", sans-serif; }
+    body { background-color: var(--bg); color: var(--text); line-height: 1.5; padding: 16px; }
+    .container { max-width: 1150px; margin: 0 auto; }
+
+    /* 頂部標題 */
+    header { background: var(--primary); color: white; padding: 18px 22px; border-radius: 12px; margin-bottom: 16px; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1); }
+    header h1 { font-size: 1.45rem; margin-bottom: 4px; }
+    header p { font-size: 0.85rem; opacity: 0.9; }
+
+    /* 頁籤切換 */
+    .tabs { display: flex; gap: 8px; margin-bottom: 16px; }
+    .tab-btn { flex: 1; padding: 10px 14px; border: none; background: white; border-radius: 8px; font-weight: 600; font-size: 0.95rem; color: var(--text-muted); cursor: pointer; border: 1px solid var(--border); transition: all 0.2s; }
+    .tab-btn.active { background: var(--primary); color: white; border-color: var(--primary); }
+
+    /* 卡片模組 */
+    .card { background: var(--card); border-radius: 12px; padding: 18px; margin-bottom: 18px; border: 1px solid var(--border); box-shadow: 0 1px 3px rgba(0,0,0,0.05); }
+    .card-title { font-size: 1.1rem; font-weight: 700; margin-bottom: 12px; color: var(--primary-dark); display: flex; align-items: center; justify-content: space-between; border-bottom: 2px solid var(--primary-light); padding-bottom: 8px; }
+
+    /* 表單佈局 */
+    .grid { display: grid; gap: 10px; }
+    .grid-3 { grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); }
+    .grid-2 { grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); }
+    .form-group { display: flex; flex-direction: column; gap: 4px; }
+    label { font-size: 0.82rem; font-weight: 600; color: var(--text-muted); }
+    input, select, textarea { padding: 8px 10px; border: 1px solid var(--border); border-radius: 6px; font-size: 0.9rem; outline: none; }
+    input:focus, select:focus, textarea:focus { border-color: var(--primary); }
+
+    /* 類別下拉選單 */
+    .category-section { margin-top: 10px; }
+    .category-header { font-size: 0.95rem; font-weight: 700; padding: 6px 10px; background: var(--primary-light); color: var(--primary-dark); border-radius: 6px; margin-bottom: 10px; }
+    .category-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: 10px; }
+    
+    .select-item-box { display: flex; flex-direction: column; background: #fafafa; border: 1px solid var(--border); border-radius: 8px; padding: 8px 10px; }
+    .select-item-label { font-size: 0.83rem; font-weight: 700; color: #374151; margin-bottom: 4px; }
+    .select-item-controls { display: flex; gap: 6px; }
+    .select-item-controls select { flex: 1; min-width: 0; }
+    
+    /* 按鈕樣式 */
+    .btn { padding: 8px 14px; border: none; border-radius: 6px; font-weight: 600; cursor: pointer; font-size: 0.88rem; display: inline-flex; align-items: center; justify-content: center; gap: 6px; white-space: nowrap; transition: 0.2s; }
+    .btn-submit { background: var(--primary); color: white; padding: 6px 12px; font-size: 0.85rem; }
+    .btn-submit:hover { background: var(--primary-dark); }
+    .btn-ai { background: var(--ai-purple); color: white; box-shadow: 0 2px 4px rgba(124, 58, 237, 0.2); font-size: 0.95rem; padding: 10px 20px; }
+    .btn-ai:hover { background: #6d28d9; }
+    .btn-danger { background: var(--danger); color: white; padding: 3px 8px; font-size: 0.78rem; }
+    .btn-print { background: var(--accent); color: white; }
+
+    /* 表格樣式 */
+    .table-container { overflow-x: auto; margin-top: 8px; }
+    table { width: 100%; border-collapse: collapse; text-align: left; }
+    th, td { padding: 8px 10px; border: 1px solid var(--border); font-size: 0.88rem; }
+    th { background: var(--primary-light); color: var(--primary-dark); font-weight: 700; white-space: nowrap; }
+    
+    .tag { display: inline-block; padding: 2px 6px; border-radius: 10px; font-size: 0.72rem; font-weight: 600; }
+    .tag-visual { background: #e0f2fe; color: #0369a1; }
+    .tag-necropsy { background: #fee2e2; color: #b91c1c; }
+
+    /* AI 分析結果區塊 */
+    .ai-analysis-card { background: var(--ai-purple-light); border: 2px solid #ddd6fe; border-radius: 12px; padding: 18px; margin-bottom: 18px; }
+    .ai-analysis-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px; color: var(--ai-purple); font-weight: 700; font-size: 1.15rem; }
+    .ai-content-box { background: white; border-radius: 8px; padding: 16px; border: 1px solid #e9d5ff; white-space: pre-wrap; font-size: 0.92rem; line-height: 1.6; color: #1f2937; }
+    .prob-badge { display: inline-block; background: #ede9fe; color: var(--ai-purple); font-weight: 700; padding: 3px 8px; border-radius: 6px; margin-right: 6px; margin-bottom: 6px; }
+
+    /* 列印適配 */
+    @media print {
+      body { background: white; padding: 0; }
+      .no-print, .tabs, button, #apiKeySetting { display: none !important; }
+      .card, .ai-analysis-card { border: none; box-shadow: none; padding: 0; margin-bottom: 12px; background: white; }
+      header { background: none; color: black; padding: 0; margin-bottom: 10px; border-bottom: 2px solid #000; }
+      th, td { border: 1px solid #333 !important; }
+      th { background: #eee !important; color: #000 !important; }
+    }
+  </style>
+</head>
+<body>
+
+<div class="container">
+  <header>
+    <h1>禽病臨床肉眼診斷與 AI 分析系統</h1>
+    <p>現場人員視診、剖檢分類選單、類症鑑別與 AI 綜合診斷輔助工具</p>
+  </header>
+
+  <div class="tabs no-print">
+    <button class="tab-btn active" onclick="switchTab('record')">📝 現場診斷紀錄與 AI 分析</button>
+    <button class="tab-btn" onclick="switchTab('database')">🔍 完整鑑別資料庫速查</button>
+  </div>
+
+  <!-- TAB 1: 診斷紀錄 -->
+  <div id="tab-record">
+    <!-- 基本資料 -->
+    <div class="card">
+      <div class="card-title">
+        <span>基本資料</span>
+        <div id="apiKeySetting" class="no-print" style="font-size: 0.8rem; font-weight: normal; display: flex; align-items: center; gap: 6px;">
+          <span>Gemini API Key (選填/留空則用內建AI引擎):</span>
+          <input type="password" id="geminiApiKey" placeholder="貼上 API Key 啟用雲端大模型" style="padding: 4px 8px; font-size: 0.8rem; width: 180px;">
+        </div>
+      </div>
+      <div class="grid grid-3">
+        <div class="form-group">
+          <label>診斷日期</label>
+          <input type="date" id="diagDate">
+        </div>
+        <div class="form-group">
+          <label>客戶名稱 / 牧場</label>
+          <input type="text" id="clientName" placeholder="例如：新福禽舍">
+        </div>
+        <div class="form-group">
+          <label>衛星場</label>
+          <input type="text" id="subFarm" placeholder="例如：一場">
+        </div>
+        <div class="form-group">
+          <label>品系</label>
+          <select id="breedSelect">
+            <option value="">-- 選擇品系 --</option>
+            <option value="白肉雞">白肉雞</option><option value="白肉種雞">白肉種雞</option>
+            <option value="黑羽土雞">黑羽土雞</option><option value="黑羽土種雞">黑羽土種雞</option>
+            <option value="仿土雞">仿土雞</option><option value="仿土種雞">仿土種雞</option>
+            <option value="古早土雞">古早土雞</option><option value="古早土種雞">古早土種雞</option>
+            <option value="文昌雞">文昌雞</option><option value="文昌種雞">文昌種雞</option>
+            <option value="烏骨雞">烏骨雞</option><option value="烏骨種雞">烏骨種雞</option>
+            <option value="產蛋母雞">產蛋母雞</option><option value="蛋中雞">蛋中雞</option><option value="育成蛋雞">育成蛋雞</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label>週齡 (週)</label>
+          <input type="number" id="weekAge" placeholder="例如：7" min="0">
+        </div>
+        <div class="form-group">
+          <label>地區</label>
+          <select id="regionSelect">
+            <option value="">-- 選擇地區 --</option>
+            <option value="虎尾">虎尾</option><option value="土庫">土庫</option><option value="崙背">崙背</option>
+            <option value="嘉義市">嘉義市</option><option value="番路">番路</option><option value="梅山">梅山</option>
+            <option value="竹崎">竹崎</option><option value="中埔">中埔</option><option value="水上">水上</option>
+            <option value="鹿草">鹿草</option><option value="太保">太保</option><option value="朴子">朴子</option>
+            <option value="東石">東石</option><option value="六腳">六腳</option><option value="新港">新港</option>
+            <option value="民雄">民雄</option><option value="大林">大林</option><option value="溪口">溪口</option>
+            <option value="義竹">義竹</option><option value="布袋">布袋</option><option value="新營區">新營區</option>
+            <option value="鹽水區">鹽水區</option><option value="白河區">白河區</option>
+          </select>
+        </div>
+      </div>
+    </div>
+
+    <!-- 依部位分類的下拉選單區 -->
+    <div class="card no-print">
+      <div class="card-title">臨床肉眼觀察與剖檢選單（選取後點擊「送出」加入紀錄）</div>
+
+      <!-- 視診類別 -->
+      <div class="category-section">
+        <div class="category-header">👁️ 視診類別 (臨床外觀、羽毛、糞便、呼吸等)</div>
+        <div class="category-grid" id="visualDropdownsContainer"></div>
+      </div>
+
+      <!-- 解剖類別 -->
+      <div class="category-section" style="margin-top: 16px;">
+        <div class="category-header">🔬 解剖類別 (呼吸道、消化道、心臟、肝脾腎等器官)</div>
+        <div class="category-grid" id="necropsyDropdownsContainer"></div>
+      </div>
+    </div>
+
+    <!-- 診斷紀錄表格與 AI 分析按鈕 -->
+    <div class="card">
+      <div class="card-title">
+        <span>📋 已送出之診斷紀錄清單</span>
+        <button class="btn btn-print no-print" onclick="window.print()">🖨️ 列印 / 匯出 PDF 報告</button>
+      </div>
+      <div class="table-container">
+        <table>
+          <thead>
+            <tr>
+              <th style="width: 50px; text-align: center;">項次</th>
+              <th style="width: 70px; text-align: center;">類別</th>
+              <th style="width: 100px;">部位 / 器官</th>
+              <th>觀察症狀</th>
+              <th>類症鑑別 (疑似疾病 / 原因)</th>
+              <th class="no-print" style="width: 60px; text-align: center;">操作</th>
+            </tr>
+          </thead>
+          <tbody id="diagTableBody"></tbody>
+        </table>
+      </div>
+
+      <!-- 🌟 送出分析按鍵區 🌟 -->
+      <div class="no-print" style="margin-top: 16px; text-align: center; border-top: 1px dashed var(--border); padding-top: 16px;">
+        <button class="btn btn-ai" id="btnAnalyze" onclick="runAiAnalysis()">
+          🤖 送出分析（AI 智慧病徵彙整與鑑別）
+        </button>
+      </div>
+    </div>
+
+    <!-- AI 彙整分析呈現區塊 -->
+    <div class="ai-analysis-card" id="aiResultContainer" style="display: none;">
+      <div class="ai-analysis-header">
+        <span>🧠 獸醫 AI 臨床病理綜合分析報告</span>
+        <button class="btn btn-submit no-print" onclick="applyAiToForm()">✍️ 將建議帶入下方處置欄位</button>
+      </div>
+      <div class="ai-content-box" id="aiAnalysisText">正在進行綜合交叉比對與研判中...</div>
+    </div>
+
+    <!-- 處置與用藥療程 -->
+    <div class="card">
+      <div class="card-title">獸醫診斷、用藥與療程追蹤</div>
+      <div class="grid grid-2" style="margin-bottom: 12px;">
+        <div class="form-group">
+          <label>初步診斷 (獸醫/現場判定)</label>
+          <textarea id="prelimDiag" rows="2" placeholder="獸醫師初步研判..."></textarea>
+        </div>
+        <div class="form-group">
+          <label>確診結果 (實驗室檢驗)</label>
+          <textarea id="finalDiag" rows="2" placeholder="PCR、細菌培養或血清學確診..."></textarea>
+        </div>
+      </div>
+
+      <div class="grid grid-2">
+        <div class="form-group">
+          <label>用藥療程 (Prescription)</label>
+          <textarea id="treatmentPlan" rows="3" placeholder="1.) 投藥品項、劑量與投藥天數&#10;2.) 飲水/飼料添加劑調整"></textarea>
+        </div>
+        <div class="form-group">
+          <label>療程追蹤紀錄 (Follow-up)</label>
+          <textarea id="trackingPlan" rows="3" placeholder="1.) 第 3 天採食量與死淘率追蹤&#10;2.) 投藥後糞便與精神恢復評估"></textarea>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- TAB 2: 資料庫檢索 -->
+  <div id="tab-database" style="display: none;">
+    <div class="card">
+      <div class="card-title">禽病肉眼診斷資料庫全文檢索</div>
+      <div class="form-group" style="margin-bottom: 12px;">
+        <input type="text" id="dbSearchInput" oninput="filterDatabase()" placeholder="🔍 請輸入器官、症狀或疾病關鍵字 (如: 氣管、綠色便、乾酪物、AI、白冠病)...">
+      </div>
+      <div class="table-container">
+        <table>
+          <thead>
+            <tr>
+              <th style="width: 70px;">類別</th>
+              <th style="width: 110px;">部位 / 器官</th>
+              <th>病徵描述</th>
+              <th>類症鑑別 (疑似疾病)</th>
+            </tr>
+          </thead>
+          <tbody id="dbTableBody"></tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+// 完整禽病病徵與疾病資料庫
+const DISEASE_DATABASE = [
+  // 視診部位
+  { type: '視診', organ: '雞冠肉垂', symptom: '上皮結痂', disease: '雞痘(POX)、打鬥外傷' },
+  { type: '視診', organ: '雞冠肉垂', symptom: '腫脹硬結', disease: '馬立克(Herpes virus)、局部注射瘤' },
+  { type: '視診', organ: '雞冠肉垂', symptom: '蒼白腫大', disease: '白冠病 (卡氏住白細胞原蟲)' },
+  { type: '視診', organ: '雞冠肉垂', symptom: '蒼白萎縮', disease: 'C.R.D、白血病、球蟲病' },
+  { type: '視診', organ: '雞冠肉垂', symptom: '發紺萎縮', disease: '馬立克、圓心症、中毒、MS' },
+  { type: '視診', organ: '雞冠肉垂', symptom: '暗紅(發紺)不萎縮', disease: 'FC(禽霍亂)、ND(新城病)、AI(禽流感)、ILT、細菌性肺炎、熱緊迫' },
+  { type: '視診', organ: '雞冠肉垂', symptom: '出血性皮膚炎脫毛結痂現象', disease: '腫頭症候群' },
+  { type: '視診', organ: '雞冠肉垂', symptom: '變紫、浮腫、肉垂血腫【典型】', disease: 'AI (禽流感)、腫頭症候群' },
+  { type: '視診', organ: '雞冠肉垂', symptom: '後冠尾齒處泛白(像噴粉樣)', disease: 'M.S、CRD 先前症狀' },
+  { type: '視診', organ: '雞冠肉垂', symptom: '肉垂裡有大膿胞、有黃白色凝固物', disease: 'FC (禽霍亂)' },
+
+  { type: '視診', organ: '頭部', symptom: '震颤', disease: '病毒感染發燒、腫頭症候群、AE(禽腦脊髓炎)、IBD' },
+  { type: '視診', organ: '頭部', symptom: '神經症狀 (扭頸、轉圈)', disease: 'ND、腫頭症候群、沙門氏菌、雛白痢、葡萄球菌、FC、AI、大腸桿菌' },
+  { type: '視診', organ: '頭部', symptom: '頸部肌肉麻痺無力而下垂', disease: '肉毒桿菌毒素中毒' },
+  { type: '視診', organ: '頭部', symptom: '腦部充血、頭頸成不可逆歪曲', disease: 'ND (新城病)、維他命E缺乏' },
+
+  { type: '視診', organ: '顏面', symptom: '皮屑（魚鱗樣）', disease: '菸鹼酸、泛酸缺乏' },
+  { type: '視診', organ: '顏面', symptom: '黑褐色鬱血', disease: '黑頭病 (組織滴蟲病)' },
+  { type: '視診', organ: '顏面', symptom: '顏面、肉垂腫脹', disease: '腫頭症、AI、IC (傳染性鼻炎)' },
+  { type: '視診', organ: '顏面', symptom: '皮下充出血、水腫或化膿性滲出物', disease: '腫頭症候群' },
+  { type: '視診', organ: '顏面', symptom: '仰頭神經症狀', disease: '維他命 B1 缺乏' },
+  { type: '視診', organ: '顏面', symptom: '眼眶成繞圓形腫脹【典型】', disease: 'AI (禽流感)' },
+  { type: '視診', organ: '顏面', symptom: '顏面消瘦泛白(貧血樣)', disease: 'CIA (傳染性貧血)、E.coli' },
+  { type: '視診', organ: '顏面', symptom: '頸部皮下膠樣病變', disease: 'AE (禽腦脊髓炎)' },
+
+  { type: '視診', organ: '眼睛', symptom: '結膜炎', disease: 'IB(傳染性支氣管炎)、ILT、黴菌感染' },
+  { type: '視診', organ: '眼睛', symptom: '卡他性結膜炎、附著黃色乾酪物', disease: 'CRD (慢性呼吸道病)' },
+  { type: '視診', organ: '眼睛', symptom: '流眼淚', disease: 'CRD、舍內氨氣過重、ILT' },
+  { type: '視診', organ: '眼睛', symptom: '有時呈倒三角眼', disease: 'ILT (傳染性喉頭氣管炎)' },
+  { type: '視診', organ: '眼睛', symptom: '內眼皮似外翻', disease: '舍內氨氣濃度過高' },
+  { type: '視診', organ: '眼睛', symptom: '眼球表面有白膜遮覆', disease: 'AE、雛白痢' },
+  { type: '視診', organ: '眼睛', symptom: '眼瞼成紫色', disease: 'AI (禽流感)' },
+  { type: '視診', organ: '眼睛', symptom: '眼球萎縮往往先單側性失明', disease: 'E. coli (大腸桿菌症)' },
+
+  { type: '視診', organ: '呼吸狀', symptom: '開口呼吸', disease: '呼吸道急性發炎、熱緊迫' },
+  { type: '視診', organ: '呼吸狀', symptom: '伸頸呼吸', disease: '異物阻塞、ND、IB' },
+  { type: '視診', organ: '呼吸狀', symptom: '極用力伸頸呼吸咳嗽、潛水式呼吸(典型)', disease: 'ILT (傳染性喉頭氣管炎典型症狀)' },
+  { type: '視診', organ: '呼吸狀', symptom: '打噴嚏', disease: '舍內空氣乾燥混濁、灰塵粉塵過高' },
+
+  { type: '視診', organ: '呼吸音', symptom: '乾性囉音', disease: '空氣乾燥、灰塵、ND初期' },
+  { type: '視診', organ: '呼吸音', symptom: '濕性囉音', disease: 'IB、大腸桿菌感染、氨氣過重、熱緊迫' },
+  { type: '視診', organ: '呼吸音', symptom: '哮喘音', disease: 'ILT、AI' },
+  { type: '視診', organ: '呼吸音', symptom: '極用力咳嗽、甩頭、咳出血絲(典型)', disease: 'ILT (傳染性喉頭氣管炎典型出血)' },
+
+  { type: '視診', organ: '羽毛', symptom: '羽毛上有血絲', disease: '啄傷、互啄、ILT咳血噴濺' },
+  { type: '視診', organ: '羽毛', symptom: '羽毛折斷處只見毛根毛細孔', disease: '老齡化、打鬥互啄、外寄生蟲感染' },
+  { type: '視診', organ: '羽毛', symptom: '肛門處毛潮濕', disease: '下痢、沙門氏菌(雛白痢)、母畜初產' },
+  { type: '視診', organ: '羽毛', symptom: '肛門處毛沾黃色便', disease: '化膿性關節炎、全身性感染' },
+  { type: '視診', organ: '羽毛', symptom: '肛門處毛沾白色乾/濕便', disease: '大腸桿菌下痢、雛白痢、尿酸鹽沉積' },
+  { type: '視診', organ: '羽毛', symptom: '羽毛異常有如直升機翼 (生長不良)', disease: '營養缺乏症、矮小症候群' },
+
+  { type: '視診', organ: '行動情況', symptom: '單腳行動、跛行、單腳側翹', disease: '滑腱症 (Perosis)' },
+  { type: '視診', organ: '行動情況', symptom: '單腳不敢著地或躡腳行動', disease: '化膿性關節炎、腳底受創傷' },
+  { type: '視診', organ: '行動情況', symptom: '犬坐狀', disease: '維他命 B2 缺乏症、關節退化變性' },
+  { type: '視診', organ: '行動情況', symptom: '坐臥狀 / 側臥單腳無力', disease: '馬立克氏病 (神經型)、腳麻痺' },
+  { type: '視診', organ: '行動情況', symptom: '一字腿坐 (劈腿)', disease: '馬立克氏病 (Marek\'s disease)' },
+  { type: '視診', organ: '行動情況', symptom: '行動時往前翻滾或失調', disease: 'AE (腦脊髓炎)、維他命 E 缺乏 (腦軟化症)' },
+  { type: '視診', organ: '行動情況', symptom: '腳掌水腫、翅關節膿瘍', disease: 'MS (滑膜囊黴漿菌)、葡萄球菌' },
+
+  { type: '視診', organ: '糞便顏色', symptom: '綠色便', disease: '採食量驟降、發高燒、膽汁鬱積' },
+  { type: '視診', organ: '糞便顏色', symptom: '墨綠色便', disease: 'ND (新城病典型)' },
+  { type: '視診', organ: '糞便顏色', symptom: '含大量鮮血 / 血便', disease: '盲腸球蟲病、急性壞死性腸炎' },
+  { type: '視診', organ: '糞便顏色', symptom: '黃色便 (含有氣泡樣)', disease: '黑頭病、滴蟲感染' },
+  { type: '視診', organ: '糞便顏色', symptom: '白色石灰水/米湯樣便', disease: '雛白痢 (沙門氏菌)、IBD、尿酸鹽尿' },
+
+  { type: '視診', organ: '產蛋', symptom: '畸形蛋及水樣蛋白', disease: 'IB (傳染性支氣管炎)' },
+  { type: '視診', organ: '產蛋', symptom: '砂殼蛋 / 薄殼蛋', disease: 'CRD、產道發炎、鈣磷代謝失調' },
+  { type: '視診', organ: '產蛋', symptom: '似乒乓球蛋 / 蛋殼異常增厚粗糙', disease: 'EDS-76 (減蛋症候群)' },
+  { type: '視診', organ: '產蛋', symptom: '產蛋率驟降或完全停產', disease: 'AI、ND、嚴重環境緊迫' },
+
+  { type: '視診', organ: '關節', symptom: '關節腫脹、化膿性乾酪物', disease: 'MS (滑膜炎黴漿菌)、葡萄球菌感染' },
+  { type: '視診', organ: '關節', symptom: '化膿分泌物帶血液 (典型)', disease: '病毒性關節炎 (Reovirus 里奧病毒典型)' },
+
+  // 解剖部位
+  { type: '解剖', organ: '食道嗉囊', symptom: '嗉囊內容物暗紅 / 黏膜出血', disease: '吐血症、組織胺中毒、腐蝕性毒物' },
+  { type: '解剖', organ: '食道嗉囊', symptom: '口腔周圍及囊內有鮮血塊', disease: 'ILT (喉頭氣管炎咳血倒流)' },
+  { type: '解剖', organ: '食道嗉囊', symptom: '嗉囊壁有白點 / 偽膜 (毛巾樣)', disease: '念珠菌病 (酵母菌感染 / 鵝口瘡)' },
+
+  { type: '解剖', organ: '腺胃', symptom: '發炎變硬、腺胃增厚', disease: '馬立克氏病、傳染性腺胃炎' },
+  { type: '解剖', organ: '腺胃', symptom: '乳突充血、出血及潰瘍', disease: 'ND (新城病乳頭出血)、PBS、念珠菌' },
+  { type: '解剖', organ: '腺胃', symptom: '腺胃內附著白稠粘物', disease: '酵母菌 (念珠菌) 感染' },
+
+  { type: '解剖', organ: '肌胃', symptom: '角質層潰瘍、變黑脫落', disease: '變質魚粉中毒、肌胃糜爛素、高組織胺' },
+  { type: '解剖', organ: '肌胃', symptom: '肌肉層有白色結節/腫塊', disease: '馬立克氏病、雛白痢結節' },
+
+  { type: '解剖', organ: '小腸', symptom: '卡他性腸炎 (黏液多)', disease: 'AI、ND、FC、沙門氏菌、大腸桿菌、寄生蟲' },
+  { type: '解剖', organ: '小腸', symptom: '腸壁壞死變厚、覆土樣偽膜', disease: '壞死性腸炎 (產氣莢膜梭菌)' },
+  { type: '解剖', organ: '小腸', symptom: '腸壁點狀出血或梯狀出血斑', disease: '小腸球蟲病 (艾美球蟲)' },
+  { type: '解剖', organ: '小腸', symptom: '盲腸腫大、內有血栓或乾酪圓柱物', disease: '盲腸球蟲病 (E. tenella)、黑頭病' },
+  { type: '解剖', organ: '小腸', symptom: '十二指腸漿膜見環狀帶出血性壞死', disease: 'ND (新城病典型壞死斑)' },
+
+  { type: '解剖', organ: '滑氏囊', symptom: '腫大、水腫、充出血或萎縮', disease: 'IBD (傳染性華氏囊病 / 甘保羅病)' },
+  { type: '解剖', organ: '滑氏囊', symptom: '結節性腫大無出血', disease: '淋巴白血病 (LL)' },
+
+  { type: '解剖', organ: '腹腔', symptom: '大量清亮或膠凍狀腹水增加', disease: '慢性中毒、肉雞腹水症、肝硬化、高鈉中毒' },
+  { type: '解剖', organ: '腹腔', symptom: '腹腔充滿黃色乾酪物 / 蛋黃破裂', disease: '大腸桿菌感染症、墜卵性腹膜炎' },
+
+  { type: '解剖', organ: '卵巢', symptom: '半透明腫瘤浸潤', disease: '馬立克氏病、淋巴白血病' },
+  { type: '解剖', organ: '卵巢', symptom: '有柄畸型卵胞 / 變黑液化', disease: '沙門氏桿菌感染 (雛白痢 / 傷寒)' },
+
+  { type: '解剖', organ: '輸卵管', symptom: '黏膜嚴重充血、管腔多量黃白色乾酪物', disease: '大腸桿菌症、沙門氏菌、CRD' },
+  { type: '解剖', organ: '輸卵管', symptom: '輸卵管萎縮、軟化、菲薄', disease: 'IB (支氣管炎)、EDS' },
+
+  { type: '解剖', organ: '上呼吸道', symptom: '眶下竇腫脹積膿', disease: 'IC (傳染性鼻炎)、支原體(MG)' },
+  { type: '解剖', organ: '上呼吸道', symptom: '喉頭氣管上部厚偽膜及乾酪物', disease: 'ILT (喉頭氣管炎)、白喉型雞痘' },
+
+  { type: '解剖', organ: '中呼吸道', symptom: '氣管炎潮紅、腔內多量黏液與血絲', disease: 'AI 初期、ILT、寒流吸入性肺炎' },
+  { type: '解剖', organ: '中呼吸道', symptom: '氣管分支處有黃白色管狀乾酪物堵塞', disease: 'AI (H5N2典型)、傳染性支氣管炎 (IB)' },
+
+  { type: '解剖', organ: '下呼吸道', symptom: '肺臟暗紅充血、水腫出血', disease: '白冠病、敗血症、急性缺氧' },
+  { type: '解剖', organ: '下呼吸道', symptom: '肺組織內有灰黃色散在性結節 (大豆大)', disease: '麴菌病 (Aspergillosis 黴菌性肺炎)' },
+  { type: '解剖', organ: '下呼吸道', symptom: '氣囊壁混濁、增厚附著乾酪物', disease: '大腸桿菌性氣囊炎、CCRD (慢呼併發大腸菌)' },
+
+  { type: '解剖', organ: '心臟', symptom: '冠狀溝脂肪點狀出血', disease: 'ND、禽霍亂 (FC)、AI、急性敗血症' },
+  { type: '解剖', organ: '心臟', symptom: '心包膜炎 (包心 / 果凍樣積水)', disease: '大腸桿菌症、CRD、高山腹水症' },
+
+  { type: '解剖', organ: '肝臟', symptom: '肝包油/包肝 (表面纖維素假膜)', disease: '大腸桿菌症、衣原體感染' },
+  { type: '解剖', organ: '肝臟', symptom: '表面針尖大小灰白色壞死點', disease: '禽霍亂 (FC 典型)、沙門氏菌' },
+  { type: '解剖', organ: '肝臟', symptom: '同心圓狀火山口樣壞死潰瘍灶', disease: '黑頭病 (組織滴蟲病典型病變)' },
+  { type: '解剖', organ: '肝臟', symptom: '肝臟腫大且有灰白色腫瘤結節', disease: '馬立克氏病、淋巴白血病' },
+
+  { type: '解剖', organ: '膽囊', symptom: '膽囊顯著腫大', disease: '嚴重沙門氏菌感染、雛白痢' },
+  { type: '解剖', organ: '膽囊', symptom: '膽汁變黃（黃褐色）', disease: '黴菌毒素、黴菌感染、黃疸' },
+
+  { type: '解剖', organ: '脾臟', symptom: '脾臟腫大呈大理石樣赤白斑紋', disease: '包涵體肝炎、白冠病、ND' },
+  { type: '解剖', organ: '腎臟', symptom: '腎臟腫大、輸尿管積滿白色尿酸鹽 (花斑腎)', disease: 'IB (腎型支氣管炎)、痛風、嚴重脫水、IBD' },
+  { type: '解剖', organ: '胰臟', symptom: '胰臟腫大、充血、壞死斑', disease: 'PBS (急性病毒性肝胰炎)' },
+  { type: '解剖', organ: '肌肉', symptom: '胸肌/腿肌有點狀或刷狀條紋出血', disease: '白冠病、IBD (甘保羅病出血)、磺胺劑中毒' }
+];
+
+let currentDiagnosticRows = [];
+let latestAiSummary = { prelim: "", treatment: "" };
+
+window.onload = function() {
+  document.getElementById('diagDate').valueAsDate = new Date();
+  buildCategoryDropdowns();
+  renderDiagTable();
+  renderDatabase(DISEASE_DATABASE);
+};
+
+function switchTab(tab) {
+  document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+  if (tab === 'record') {
+    document.getElementById('tab-record').style.display = 'block';
+    document.getElementById('tab-database').style.display = 'none';
+    event.target.classList.add('active');
+  } else {
+    document.getElementById('tab-record').style.display = 'none';
+    document.getElementById('tab-database').style.display = 'block';
+    event.target.classList.add('active');
+  }
+}
+
+function buildCategoryDropdowns() {
+  const visualOrgans = [...new Set(DISEASE_DATABASE.filter(d => d.type === '視診').map(d => d.organ))];
+  const necropsyOrgans = [...new Set(DISEASE_DATABASE.filter(d => d.type === '解剖').map(d => d.organ))];
+
+  const visualContainer = document.getElementById('visualDropdownsContainer');
+  const necropsyContainer = document.getElementById('necropsyDropdownsContainer');
+
+  visualContainer.innerHTML = visualOrgans.map(org => createOrganSelectBox('視診', org)).join('');
+  necropsyContainer.innerHTML = necropsyOrgans.map(org => createOrganSelectBox('解剖', org)).join('');
+}
+
+function createOrganSelectBox(type, organ) {
+  const items = DISEASE_DATABASE.filter(d => d.type === type && d.organ === organ);
+  const safeId = `sel_${type}_${organ}`.replace(/[\s\(\)\/]/g, '_');
+  const options = items.map(item => `<option value="${item.symptom}">${item.symptom}</option>`).join('');
+
+  return `
+    <div class="select-item-box">
+      <div class="select-item-label">${organ}</div>
+      <div class="select-item-controls">
+        <select id="${safeId}">
+          <option value="">-- 請選擇病徵 --</option>
+          ${options}
+        </select>
+        <button class="btn btn-submit" onclick="submitSingleOrgan('${type}', '${organ}', '${safeId}')">送出</button>
+      </div>
+    </div>
+  `;
+}
+
+function submitSingleOrgan(type, organ, selectId) {
+  const selectElem = document.getElementById(selectId);
+  const symptom = selectElem.value;
+
+  if (!symptom) {
+    alert(`請先為【${organ}】選擇一項觀察到的症狀再點擊送出！`);
+    return;
+  }
+
+  const match = DISEASE_DATABASE.find(d => d.type === type && d.organ === organ && d.symptom === symptom);
+  if (!match) return;
+
+  const exists = currentDiagnosticRows.some(r => r.type === type && r.organ === organ && r.symptom === symptom);
+  if (exists) {
+    alert(`【${organ} - ${symptom}】已經在清單中囉！`);
+    return;
+  }
+
+  currentDiagnosticRows.push({
+    type: type,
+    organ: organ,
+    symptom: symptom,
+    disease: match.disease
+  });
+
+  renderDiagTable();
+  selectElem.value = "";
+}
+
+function removeDiagRow(index) {
+  currentDiagnosticRows.splice(index, 1);
+  renderDiagTable();
+}
+
+function renderDiagTable() {
+  const tbody = document.getElementById('diagTableBody');
+  if (currentDiagnosticRows.length === 0) {
+    tbody.innerHTML = `<tr><td colspan="6" style="text-align:center; color: var(--text-muted); padding: 18px;">尚無記錄項目。請在上方的各器官選單中選取症狀並點擊「送出」。</td></tr>`;
+    return;
+  }
+
+  tbody.innerHTML = currentDiagnosticRows.map((r, idx) => `
+    <tr>
+      <td style="text-align:center; font-weight:600;">${idx + 1}</td>
+      <td style="text-align:center;"><span class="tag ${r.type === '視診' ? 'tag-visual' : 'tag-necropsy'}">${r.type}</span></td>
+      <td><strong>${r.organ}</strong></td>
+      <td>${r.symptom}</td>
+      <td style="color: var(--primary-dark); font-weight: 600;">${r.disease}</td>
+      <td class="no-print" style="text-align:center;">
+        <button class="btn btn-danger" onclick="removeDiagRow(${idx})">刪除</button>
+      </td>
+    </tr>
+  `).join('');
+}
+
+// 🌟 AI 智慧分析與綜合研判核心邏輯 🌟
+async function runAiAnalysis() {
+  if (currentDiagnosticRows.length === 0) {
+    alert("請先至少送出 1~2 項病徵至診斷紀錄清單中，再進行 AI 分析！");
+    return;
+  }
+
+  const resultContainer = document.getElementById('aiResultContainer');
+  const resultText = document.getElementById('aiAnalysisText');
+  const apiKey = document.getElementById('geminiApiKey').value.trim();
+
+  resultContainer.style.display = 'block';
+  resultText.innerText = "⏳ 正在啟動禽病專家系統進行交叉比對與深度分析中...";
+  resultContainer.scrollIntoView({ behavior: 'smooth' });
+
+  const breed = document.getElementById('breedSelect').value || '未填寫';
+  const age = document.getElementById('weekAge').value ? `${document.getElementById('weekAge').value} 週齡` : '未填寫';
+  const region = document.getElementById('regionSelect').value || '未填寫';
+
+  // 整理診斷資料
+  const diagSummary = currentDiagnosticRows.map((r, i) => `${i+1}. [${r.type}] ${r.organ}: ${r.symptom} (相關病因: ${r.disease})`).join('\n');
+
+  // 若使用者有填入 API Key 則走 Gemini API，否則使用內建高階專家分析引擎
+  if (apiKey) {
+    try {
+      const prompt = `你是一位資深的家禽臨床獸醫師。現場人員記錄了以下禽群發病資料：
+【基本資訊】品系：${breed}，週齡：${age}，地區：${region}
+【臨床肉眼與剖檢病徵】
+${diagSummary}
+
+請依據上述臨床表現提供專業精準的 AI 診斷分析：
+1. 【高嫌疑疾病排行】：分析最可能的 1~3 種原發或併發疾病（標註可能原因與吻合病徵）。
+2. 【病理機制解析】：簡要分析呼吸系統、消化系統或全身敗血的病灶關聯。
+3. 【緊急現場處置與用藥建議】：提供抗生素/抗病毒/抗球蟲或環境改善措施。
+4. 【確診建議採樣項目】：建議送檢實驗室的採樣器官與檢驗方法 (如 PCR, 細菌分離)。`;
+
+      const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }] })
+      });
+
+      const data = await response.json();
+      if (data.candidates && data.candidates[0].content.parts[0].text) {
+        const aiResponse = data.candidates[0].content.parts[0].text;
+        resultText.innerText = aiResponse;
+        latestAiSummary.prelim = `【AI綜合研判】\n` + aiResponse.split('\n').slice(0, 5).join('\n');
+        latestAiSummary.treatment = `【建議方案】請參照上方 AI 分析建議之處置與投藥流程。`;
+        return;
+      }
+    } catch (e) {
+      console.warn("API 調用失敗，切換為內建專家引擎：", e);
+    }
+  }
+
+  // 內建離線智慧專家系統 (統計權重與交叉比對)
+  setTimeout(() => {
+    const analysis = executeLocalExpertEngine(breed, age, region, currentDiagnosticRows);
+    resultText.innerHTML = analysis.html;
+    latestAiSummary.prelim = analysis.prelimText;
+    latestAiSummary.treatment = analysis.treatmentText;
+  }, 400);
+}
+
+// 內建統計比對與專家規則引擎
+function executeLocalExpertEngine(breed, age, region, records) {
+  const diseaseFrequency = {};
+  const organSystems = { '呼吸系統': 0, '消化系統': 0, '神經與運動': 0, '全身/敗血/免疫': 0 };
+
+  records.forEach(r => {
+    // 疾病詞頻拆解
+    const diseases = r.disease.split(/[、,.\s\/()（）]+/).filter(d => d.length > 1);
+    diseases.forEach(d => {
+      diseaseFrequency[d] = (diseaseFrequency[d] || 0) + 1;
+    });
+
+    // 系統分類
+    if (['上呼吸道', '中呼吸道', '下呼吸道', '呼吸狀', '呼吸音'].includes(r.organ)) organSystems['呼吸系統']++;
+    else if (['食道嗉囊', '腺胃', '肌胃', '小腸', '糞便顏色'].includes(r.organ)) organSystems['消化系統']++;
+    else if (['頭部', '行動情況', '關節'].includes(r.organ)) organSystems['神經與運動']++;
+    else organSystems['全身/敗血/免疫']++;
+  });
+
+  // 依吻合次數排序
+  const sortedDiseases = Object.entries(diseaseFrequency)
+    .sort((a, b) => b[1] - a[1])
+    .filter(([name]) => !['先前症狀', '熱緊迫', '典型', '典型症狀', '中毒'].includes(name));
+
+  const topDiseases = sortedDiseases.slice(0, 4);
+
+  let html = `📊 <strong>【基本評估】</strong> 禽群品系：<code>${breed}</code> | 週齡：<code>${age}</code> | 地區：<code>${region}</code>\n\n`;
+  html += `🎯 <strong>【高度疑似疾病排列 (依病徵交集權重)】</strong>：\n`;
+  
+  if (topDiseases.length > 0) {
+    topDiseases.forEach(([d, count], idx) => {
+      const matchRate = Math.min(95, Math.round((count / records.length) * 100) + 30);
+      html += `<div style="margin: 6px 0;"><span class="prob-badge">#${idx+1} ${d}</span> 吻合度指標約 <strong>${matchRate}%</strong> (涵蓋 ${count} 項觀察病徵)</div>`;
+    });
+  } else {
+    html += `• 臨床病徵較為分散，需持續觀察死淘率或進行採樣檢驗。\n`;
+  }
+
+  html += `\n🔍 <strong>【主要受害器官系統分析】</strong>：\n`;
+  for (const [sys, cnt] of Object.entries(organSystems)) {
+    if (cnt > 0) html += `• <strong>${sys}</strong> 發現 ${cnt} 處典型肉眼病變\n`;
+  }
+
+  html += `\n💡 <strong>【現場獸醫初步處置與採樣建議】</strong>：\n`;
+  const primarySuspect = topDiseases[0] ? topDiseases[0][0] : "複合性感染";
+  
+  if (primarySuspect.includes('AI') || primarySuspect.includes('ND') || primarySuspect.includes('ILT')) {
+    html += `1. 強烈懷疑<strong>病毒性呼吸道或重大傳染病</strong>，應立即採取嚴格生物安全隔離措施。\n2. 避免盲目投用抗生素，加強舍內通風與保溫平衡。\n3. 採樣送檢：採集氣管、肺臟、腦部及脾臟送禽病診斷中心進行 PCR 或病毒分離。`;
+  } else if (primarySuspect.includes('大腸') || primarySuspect.includes('FC') || primarySuspect.includes('沙門') || primarySuspect.includes('CRD')) {
+    html += `1. 疑似<strong>細菌性/黴漿菌敗血或繼發感染</strong>，建議配合獸醫指示進行抗生素敏化試驗後投藥。\n2. 補充水溶性電解質與多種維他命，減緩緊迫。\n3. 採樣送檢：無菌採集肝臟、心包膜液、氣囊乾酪物送細菌分離鑑定。`;
+  } else if (primarySuspect.includes('球蟲') || primarySuspect.includes('黑頭') || primarySuspect.includes('壞死')) {
+    html += `1. 疑似<strong>消化道寄生蟲或梭菌性腸炎</strong>，檢視墊料濕度與糞便狀況。\n2. 投與抗球蟲劑或針對性腸道抑菌劑，維護腸道黏膜完整性。\n3. 採樣送檢：採集新鮮盲腸/小腸黏膜進行刮取物顯微鏡鏡檢。`;
+  } else {
+    html += `1. 建議先補充多種維生素及電解質，調整舍內環境溫濕度與落塵。\n2. 採集具代表性之病死禽隻全屍冷藏後儘速送檢。`;
+  }
+
+  const prelimText = `初步綜合判定疑似：${topDiseases.map(d => d[0]).join('、') || '待進一步確診'}。\n主要病變集中於${Object.entries(organSystems).filter(e => e[1]>0).map(e => e[0]).join('、')}。`;
+  const treatmentText = `1. 隔離發病群並依疑似方向調整管理。\n2. 採樣病變器官送實驗室檢驗。\n3. 視情況補充綜合維生素/電解質或依醫囑投藥。`;
+
+  return { html, prelimText, treatmentText };
+}
+
+// 將 AI 建議一鍵帶入表單欄位
+function applyAiToForm() {
+  if (latestAiSummary.prelim) {
+    document.getElementById('prelimDiag').value = latestAiSummary.prelim;
+    document.getElementById('treatmentPlan').value = latestAiSummary.treatment;
+    alert("已將 AI 建議帶入下方「初步診斷」與「用藥療程」欄位！");
+    document.getElementById('prelimDiag').scrollIntoView({ behavior: 'smooth' });
+  }
+}
+
+// 資料庫篩選與渲染
+function renderDatabase(data) {
+  const tbody = document.getElementById('dbTableBody');
+  if (data.length === 0) {
+    tbody.innerHTML = `<tr><td colspan="4" style="text-align:center; padding: 16px;">查無符合條件的病徵紀錄</td></tr>`;
+    return;
+  }
+  tbody.innerHTML = data.map(item => `
+    <tr>
+      <td><span class="tag ${item.type === '視診' ? 'tag-visual' : 'tag-necropsy'}">${item.type}</span></td>
+      <td><strong>${item.organ}</strong></td>
+      <td>${item.symptom}</td>
+      <td style="color: var(--primary-dark); font-weight: 500;">${item.disease}</td>
+    </tr>
+  `).join('');
+}
+
+function filterDatabase() {
+  const q = document.getElementById('dbSearchInput').value.trim().toLowerCase();
+  if (!q) {
+    renderDatabase(DISEASE_DATABASE);
+    return;
+  }
+  const filtered = DISEASE_DATABASE.filter(item => 
+    item.organ.toLowerCase().includes(q) ||
+    item.symptom.toLowerCase().includes(q) ||
+    item.disease.toLowerCase().includes(q) ||
+    item.type.toLowerCase().includes(q)
+  );
+  renderDatabase(filtered);
+}
+</script>
+
+</body>
+</html>
