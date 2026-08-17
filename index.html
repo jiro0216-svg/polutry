@@ -4,6 +4,8 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>禽病臨床肉眼診斷與 AI 分析系統</title>
+  <!-- 引入 Excel 檔案解析函式庫 SheetJS -->
+  <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
   <style>
     :root {
       --primary: #1e6b4d;
@@ -36,7 +38,7 @@
 
     /* 卡片模組 */
     .card { background: var(--card); border-radius: 12px; padding: 18px; margin-bottom: 18px; border: 1px solid var(--border); box-shadow: 0 1px 3px rgba(0,0,0,0.05); }
-    .card-title { font-size: 1.1rem; font-weight: 700; margin-bottom: 12px; color: var(--primary-dark); display: flex; align-items: center; justify-content: space-between; border-bottom: 2px solid var(--primary-light); padding-bottom: 8px; }
+    .card-title { font-size: 1.1rem; font-weight: 700; margin-bottom: 12px; color: var(--primary-dark); display: flex; align-items: center; justify-content: space-between; border-bottom: 2px solid var(--primary-light); padding-bottom: 8px; flex-wrap: wrap; gap: 8px; }
 
     /* 表單佈局 */
     .grid { display: grid; gap: 10px; }
@@ -65,6 +67,10 @@
     .btn-ai:hover { background: #6d28d9; }
     .btn-danger { background: var(--danger); color: white; padding: 3px 8px; font-size: 0.78rem; }
     .btn-print { background: var(--accent); color: white; }
+    .btn-excel { background: #107c41; color: white; }
+    .btn-excel:hover { background: #0b5a2f; }
+    .btn-outline { background: white; border: 1px solid var(--border); color: var(--text-muted); }
+    .btn-outline:hover { background: #f9fafb; color: var(--text); }
 
     /* 表格樣式 */
     .table-container { overflow-x: auto; margin-top: 8px; }
@@ -85,7 +91,7 @@
     /* 列印適配 */
     @media print {
       body { background: white; padding: 0; }
-      .no-print, .tabs, button, #apiKeySetting { display: none !important; }
+      .no-print, .tabs, button, #apiKeySetting, #dbControls { display: none !important; }
       .card, .ai-analysis-card { border: none; box-shadow: none; padding: 0; margin-bottom: 12px; background: white; }
       header { background: none; color: black; padding: 0; margin-bottom: 10px; border-bottom: 2px solid #000; }
       th, td { border: 1px solid #333 !important; }
@@ -98,12 +104,12 @@
 <div class="container">
   <header>
     <h1>禽病臨床肉眼診斷與 AI 分析系統</h1>
-    <p>現場人員視診、剖檢分類選單、類症鑑別與 AI 綜合診斷輔助工具</p>
+    <p>現場人員視診、剖檢分類選單、Excel 資料庫即時匯入與 AI 綜合診斷輔助工具</p>
   </header>
 
   <div class="tabs no-print">
     <button class="tab-btn active" onclick="switchTab('record')">📝 現場診斷紀錄與 AI 分析</button>
-    <button class="tab-btn" onclick="switchTab('database')">🔍 完整鑑別資料庫速查</button>
+    <button class="tab-btn" onclick="switchTab('database')">🔍 完整鑑別資料庫速查與管理</button>
   </div>
 
   <!-- TAB 1: 診斷紀錄 -->
@@ -113,7 +119,7 @@
       <div class="card-title">
         <span>基本資料</span>
         <div id="apiKeySetting" class="no-print" style="font-size: 0.8rem; font-weight: normal; display: flex; align-items: center; gap: 6px;">
-          <span>Gemini API Key (選填/留空則用內建AI引擎):</span>
+          <span>Gemini API Key (選填):</span>
           <input type="password" id="geminiApiKey" placeholder="貼上 API Key 啟用雲端大模型" style="padding: 4px 8px; font-size: 0.8rem; width: 180px;">
         </div>
       </div>
@@ -166,7 +172,10 @@
 
     <!-- 依部位分類的下拉選單區 -->
     <div class="card no-print">
-      <div class="card-title">臨床肉眼觀察與剖檢選單（選取後點擊「送出」加入紀錄）</div>
+      <div class="card-title">
+        <span>臨床肉眼觀察與剖檢選單（選取後點擊「送出」加入紀錄）</span>
+        <span id="dbStatusBadge" style="font-size: 0.8rem; font-weight: normal; color: var(--primary);"></span>
+      </div>
 
       <!-- 視診類別 -->
       <div class="category-section">
@@ -203,7 +212,7 @@
         </table>
       </div>
 
-      <!-- 🌟 送出分析按鍵區 🌟 -->
+      <!-- 送出分析按鍵區 -->
       <div class="no-print" style="margin-top: 16px; text-align: center; border-top: 1px dashed var(--border); padding-top: 16px;">
         <button class="btn btn-ai" id="btnAnalyze" onclick="runAiAnalysis()">
           🤖 送出分析（AI 智慧病徵彙整與鑑別）
@@ -247,10 +256,23 @@
     </div>
   </div>
 
-  <!-- TAB 2: 資料庫檢索 -->
+  <!-- TAB 2: 資料庫檢索與 Excel 匯入管理 -->
   <div id="tab-database" style="display: none;">
     <div class="card">
-      <div class="card-title">禽病肉眼診斷資料庫全文檢索</div>
+      <div class="card-title">
+        <span>禽病肉眼診斷資料庫檢索與更新管理</span>
+        <div class="no-print" id="dbControls" style="display: flex; gap: 8px; align-items: center;">
+          <!-- 隱藏的檔案上傳 input -->
+          <input type="file" id="excelFileInput" accept=".xlsx, .xls, .csv" style="display: none;" onchange="handleExcelUpload(event)">
+          <button class="btn btn-excel" onclick="document.getElementById('excelFileInput').click()">📁 匯入 Excel/CSV 更新資料庫</button>
+          <button class="btn btn-outline" onclick="resetDatabaseToDefault()">🔄 恢復預設資料庫</button>
+        </div>
+      </div>
+
+      <div style="background: #f8fafc; border: 1px dashed #cbd5e1; padding: 10px 14px; border-radius: 8px; margin-bottom: 14px; font-size: 0.85rem; color: #475569;">
+        💡 <strong>Excel 匯入支援說明：</strong> 支援包含 <code>114暫用疾病診斷參考.xlsx</code> 格式或標準三欄式表格（<code>器官部位</code>、<code>觀察症狀</code>、<code>類症鑑別</code>）。匯入後資料將自動保存在此瀏覽器中。
+      </div>
+
       <div class="form-group" style="margin-bottom: 12px;">
         <input type="text" id="dbSearchInput" oninput="filterDatabase()" placeholder="🔍 請輸入器官、症狀或疾病關鍵字 (如: 氣管、綠色便、乾酪物、AI、白冠病)...">
       </div>
@@ -272,8 +294,8 @@
 </div>
 
 <script>
-// 完整禽病病徵與疾病資料庫
-const DISEASE_DATABASE = [
+// 系統預設禽病資料庫
+const DEFAULT_DATABASE = [
   // 視診部位
   { type: '視診', organ: '雞冠肉垂', symptom: '上皮結痂', disease: '雞痘(POX)、打鬥外傷' },
   { type: '視診', organ: '雞冠肉垂', symptom: '腫脹硬結', disease: '馬立克(Herpes virus)、局部注射瘤' },
@@ -405,16 +427,144 @@ const DISEASE_DATABASE = [
   { type: '解剖', organ: '肌肉', symptom: '胸肌/腿肌有點狀或刷狀條紋出血', disease: '白冠病、IBD (甘保羅病出血)、磺胺劑中毒' }
 ];
 
+// 當前啟用的資料庫（優先從 LocalStorage 讀取自訂 Excel 資料）
+let activeDatabase = [];
 let currentDiagnosticRows = [];
 let latestAiSummary = { prelim: "", treatment: "" };
 
-window.onload = function() {
-  document.getElementById('diagDate').valueAsDate = new Date();
-  buildCategoryDropdowns();
-  renderDiagTable();
-  renderDatabase(DISEASE_DATABASE);
+const ORGAN_TYPE_MAP = {
+  '雞冠肉垂': '視診', '頭部': '視診', '顏面': '視診', '眼睛': '視診',
+  '呼吸狀': '視診', '呼吸音': '視診', '羽毛': '視診', '行動情況': '視診',
+  '糞便顏色': '視診', '產蛋': '視診', '關節': '視診',
+  '食道嗉囊': '解剖', '腺胃': '解剖', '肌胃': '解剖', '小腸': '解剖',
+  '滑氏囊': '解剖', '腹腔': '解剖', '卵巢': '解剖', '輸卵管': '解剖',
+  '上呼吸道': '解剖', '中呼吸道': '解剖', '下呼吸道': '解剖', '心臟': '解剖',
+  '肝臟': '解剖', '膽囊': '解剖', '脾臟': '解剖', '腎臟': '解剖',
+  '胰臟': '解剖', '肌肉': '解剖'
 };
 
+window.onload = function() {
+  document.getElementById('diagDate').valueAsDate = new Date();
+  loadDatabase();
+  renderDiagTable();
+};
+
+// 載入資料庫（支援 LocalStorage 記憶）
+function loadDatabase() {
+  const saved = localStorage.getItem('poultry_custom_db');
+  if (saved) {
+    try {
+      activeDatabase = JSON.parse(saved);
+      document.getElementById('dbStatusBadge').innerText = `(已載入自訂 Excel 資料庫，共 ${activeDatabase.length} 筆)`;
+    } catch(e) {
+      activeDatabase = [...DEFAULT_DATABASE];
+    }
+  } else {
+    activeDatabase = [...DEFAULT_DATABASE];
+    document.getElementById('dbStatusBadge').innerText = `(使用系統預設資料庫，共 ${activeDatabase.length} 筆)`;
+  }
+  buildCategoryDropdowns();
+  renderDatabase(activeDatabase);
+}
+
+// 📁 處理 Excel / CSV 檔案上傳與即時解析
+function handleExcelUpload(event) {
+  const file = event.target.files[0];
+  if (!file) return;
+
+  const reader = new FileReader();
+  reader.onload = function(e) {
+    try {
+      const data = new Uint8Array(e.target.result);
+      const workbook = XLSX.read(data, { type: 'array' });
+
+      // 取第一個工作表
+      const firstSheetName = workbook.SheetNames[0];
+      const worksheet = workbook.Sheets[firstSheetName];
+      const rawJson = XLSX.utils.sheet_to_json(worksheet, { header: 1 });
+
+      const parsedRecords = parseExcelRows(rawJson);
+
+      if (parsedRecords.length === 0) {
+        alert("未能從 Excel 解析出有效的病徵與疾病資料，請確認檔案格式！");
+        return;
+      }
+
+      activeDatabase = parsedRecords;
+      localStorage.setItem('poultry_custom_db', JSON.stringify(activeDatabase));
+      
+      alert(`🎉 成功匯入 Excel 資料庫！共載入 ${activeDatabase.length} 筆病徵資料。所有選單已即刻更新！`);
+      loadDatabase();
+
+    } catch (err) {
+      console.error(err);
+      alert("解析 Excel 檔案時發生錯誤：" + err.message);
+    }
+  };
+  reader.readAsArrayBuffer(file);
+  event.target.value = ''; // 重設 input
+}
+
+// 智慧解析各類型 Excel（支援矩陣排版與標準清單）
+function parseExcelRows(rows) {
+  const list = [];
+  let currentOrgan = "雞冠肉垂";
+
+  for (let r = 0; r < rows.length; r++) {
+    const row = rows[r];
+    if (!row || row.length === 0) continue;
+
+    // 情況 A：相容原版 Excel (病徵在 Col 58, 疾病在 Col 59)
+    let cSymptom = row[58] !== undefined ? String(row[58]).trim() : '';
+    let cDisease = row[59] !== undefined ? String(row[59]).trim() : '';
+
+    // 情況 B：標準 3 欄式 (Col 0: 器官, Col 1: 症狀, Col 2: 疾病)
+    if (!cSymptom && row.length >= 3 && row[1] && row[2]) {
+      const org = String(row[0]).trim().replace(/[:：\s]/g, '');
+      const sym = String(row[1]).trim();
+      const dis = String(row[2]).trim();
+      if (sym && dis && sym !== '症狀' && dis !== '類症鑑別') {
+        const type = ORGAN_TYPE_MAP[org] || (row[3] ? String(row[3]).trim() : '解剖');
+        list.push({ type, organ: org, symptom: sym, disease: dis });
+        continue;
+      }
+    }
+
+    if (!cSymptom && !cDisease) continue;
+
+    // 檢查是否為器官大標題
+    let cleanOrgan = cSymptom.replace(/[:：\s\.]/g, '');
+    if (cleanOrgan === '肝') cleanOrgan = '肝臟';
+    if (cleanOrgan === '脾') cleanOrgan = '脾臟';
+
+    if (ORGAN_TYPE_MAP[cleanOrgan] || ['雞冠肉垂', '頭部', '顏面', '眼睛', '呼吸狀', '呼吸音', '羽毛', '行動情況', '糞便顏色', '產蛋', '關節', '食道嗉囊', '腺胃', '肌胃', '小腸', '滑氏囊', '腹腔', '卵巢', '輸卵管', '上呼吸道', '中呼吸道', '下呼吸道', '心臟', '肝臟', '膽囊', '脾臟', '腎臟', '胰臟', '肌肉'].includes(cleanOrgan)) {
+      currentOrgan = cleanOrgan;
+      continue;
+    }
+
+    if (cSymptom && cSymptom !== '0' && cDisease && cDisease !== 'None' && cDisease !== '') {
+      const type = ORGAN_TYPE_MAP[currentOrgan] || '解剖';
+      list.push({
+        type: type,
+        organ: currentOrgan,
+        symptom: cSymptom,
+        disease: cDisease
+      });
+    }
+  }
+  return list;
+}
+
+// 恢復預設資料庫
+function resetDatabaseToDefault() {
+  if (confirm("確定要清除自訂匯入的 Excel 資料，恢復為系統預設資料庫嗎？")) {
+    localStorage.removeItem('poultry_custom_db');
+    loadDatabase();
+    alert("已恢復為系統預設資料庫！");
+  }
+}
+
+// 頁籤切換
 function switchTab(tab) {
   document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
   if (tab === 'record') {
@@ -428,9 +578,10 @@ function switchTab(tab) {
   }
 }
 
+// 動態建立每個部位獨立的下拉選單與送出按鈕
 function buildCategoryDropdowns() {
-  const visualOrgans = [...new Set(DISEASE_DATABASE.filter(d => d.type === '視診').map(d => d.organ))];
-  const necropsyOrgans = [...new Set(DISEASE_DATABASE.filter(d => d.type === '解剖').map(d => d.organ))];
+  const visualOrgans = [...new Set(activeDatabase.filter(d => d.type === '視診').map(d => d.organ))];
+  const necropsyOrgans = [...new Set(activeDatabase.filter(d => d.type === '解剖').map(d => d.organ))];
 
   const visualContainer = document.getElementById('visualDropdownsContainer');
   const necropsyContainer = document.getElementById('necropsyDropdownsContainer');
@@ -439,8 +590,9 @@ function buildCategoryDropdowns() {
   necropsyContainer.innerHTML = necropsyOrgans.map(org => createOrganSelectBox('解剖', org)).join('');
 }
 
+// 產生單一部位選單 HTML
 function createOrganSelectBox(type, organ) {
-  const items = DISEASE_DATABASE.filter(d => d.type === type && d.organ === organ);
+  const items = activeDatabase.filter(d => d.type === type && d.organ === organ);
   const safeId = `sel_${type}_${organ}`.replace(/[\s\(\)\/]/g, '_');
   const options = items.map(item => `<option value="${item.symptom}">${item.symptom}</option>`).join('');
 
@@ -449,7 +601,7 @@ function createOrganSelectBox(type, organ) {
       <div class="select-item-label">${organ}</div>
       <div class="select-item-controls">
         <select id="${safeId}">
-          <option value="">-- 請選擇病徵 --</option>
+          <option value="">-- 請選擇病徵 (${items.length}項) --</option>
           ${options}
         </select>
         <button class="btn btn-submit" onclick="submitSingleOrgan('${type}', '${organ}', '${safeId}')">送出</button>
@@ -458,6 +610,7 @@ function createOrganSelectBox(type, organ) {
   `;
 }
 
+// 單一部位選單的「送出」按鈕觸發事件
 function submitSingleOrgan(type, organ, selectId) {
   const selectElem = document.getElementById(selectId);
   const symptom = selectElem.value;
@@ -467,7 +620,7 @@ function submitSingleOrgan(type, organ, selectId) {
     return;
   }
 
-  const match = DISEASE_DATABASE.find(d => d.type === type && d.organ === organ && d.symptom === symptom);
+  const match = activeDatabase.find(d => d.type === type && d.organ === organ && d.symptom === symptom);
   if (!match) return;
 
   const exists = currentDiagnosticRows.some(r => r.type === type && r.organ === organ && r.symptom === symptom);
@@ -487,11 +640,13 @@ function submitSingleOrgan(type, organ, selectId) {
   selectElem.value = "";
 }
 
+// 刪除紀錄列
 function removeDiagRow(index) {
   currentDiagnosticRows.splice(index, 1);
   renderDiagTable();
 }
 
+// 渲染診斷紀錄表格
 function renderDiagTable() {
   const tbody = document.getElementById('diagTableBody');
   if (currentDiagnosticRows.length === 0) {
@@ -513,7 +668,7 @@ function renderDiagTable() {
   `).join('');
 }
 
-// 🌟 AI 智慧分析與綜合研判核心邏輯 🌟
+// 🌟 AI 智慧分析與綜合研判 🌟
 async function runAiAnalysis() {
   if (currentDiagnosticRows.length === 0) {
     alert("請先至少送出 1~2 項病徵至診斷紀錄清單中，再進行 AI 分析！");
@@ -532,22 +687,20 @@ async function runAiAnalysis() {
   const age = document.getElementById('weekAge').value ? `${document.getElementById('weekAge').value} 週齡` : '未填寫';
   const region = document.getElementById('regionSelect').value || '未填寫';
 
-  // 整理診斷資料
   const diagSummary = currentDiagnosticRows.map((r, i) => `${i+1}. [${r.type}] ${r.organ}: ${r.symptom} (相關病因: ${r.disease})`).join('\n');
 
-  // 若使用者有填入 API Key 則走 Gemini API，否則使用內建高階專家分析引擎
   if (apiKey) {
     try {
-      const prompt = `你是一位資深的家禽臨床獸醫師。現場人員記錄了以下禽群發病資料：
+      const prompt = `你是一位資深的家禽臨床獸醫師。現場人員記錄了以下發病資料：
 【基本資訊】品系：${breed}，週齡：${age}，地區：${region}
 【臨床肉眼與剖檢病徵】
 ${diagSummary}
 
-請依據上述臨床表現提供專業精準的 AI 診斷分析：
-1. 【高嫌疑疾病排行】：分析最可能的 1~3 種原發或併發疾病（標註可能原因與吻合病徵）。
-2. 【病理機制解析】：簡要分析呼吸系統、消化系統或全身敗血的病灶關聯。
-3. 【緊急現場處置與用藥建議】：提供抗生素/抗病毒/抗球蟲或環境改善措施。
-4. 【確診建議採樣項目】：建議送檢實驗室的採樣器官與檢驗方法 (如 PCR, 細菌分離)。`;
+請提供專業 AI 診斷：
+1. 【高嫌疑疾病排行】：分析最可能的 1~3 種原發或併發疾病。
+2. 【病理機制解析】：簡要分析病灶關聯。
+3. 【緊急現場處置與用藥建議】：提供改善或用藥方向。
+4. 【確診建議採樣項目】：建議送檢器官與方法。`;
 
       const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`, {
         method: 'POST',
@@ -568,35 +721,31 @@ ${diagSummary}
     }
   }
 
-  // 內建離線智慧專家系統 (統計權重與交叉比對)
   setTimeout(() => {
     const analysis = executeLocalExpertEngine(breed, age, region, currentDiagnosticRows);
     resultText.innerHTML = analysis.html;
     latestAiSummary.prelim = analysis.prelimText;
     latestAiSummary.treatment = analysis.treatmentText;
-  }, 400);
+  }, 350);
 }
 
-// 內建統計比對與專家規則引擎
+// 內建統計比對專家規則引擎
 function executeLocalExpertEngine(breed, age, region, records) {
   const diseaseFrequency = {};
   const organSystems = { '呼吸系統': 0, '消化系統': 0, '神經與運動': 0, '全身/敗血/免疫': 0 };
 
   records.forEach(r => {
-    // 疾病詞頻拆解
     const diseases = r.disease.split(/[、,.\s\/()（）]+/).filter(d => d.length > 1);
     diseases.forEach(d => {
       diseaseFrequency[d] = (diseaseFrequency[d] || 0) + 1;
     });
 
-    // 系統分類
     if (['上呼吸道', '中呼吸道', '下呼吸道', '呼吸狀', '呼吸音'].includes(r.organ)) organSystems['呼吸系統']++;
     else if (['食道嗉囊', '腺胃', '肌胃', '小腸', '糞便顏色'].includes(r.organ)) organSystems['消化系統']++;
     else if (['頭部', '行動情況', '關節'].includes(r.organ)) organSystems['神經與運動']++;
     else organSystems['全身/敗血/免疫']++;
   });
 
-  // 依吻合次數排序
   const sortedDiseases = Object.entries(diseaseFrequency)
     .sort((a, b) => b[1] - a[1])
     .filter(([name]) => !['先前症狀', '熱緊迫', '典型', '典型症狀', '中毒'].includes(name));
@@ -639,7 +788,6 @@ function executeLocalExpertEngine(breed, age, region, records) {
   return { html, prelimText, treatmentText };
 }
 
-// 將 AI 建議一鍵帶入表單欄位
 function applyAiToForm() {
   if (latestAiSummary.prelim) {
     document.getElementById('prelimDiag').value = latestAiSummary.prelim;
@@ -649,7 +797,6 @@ function applyAiToForm() {
   }
 }
 
-// 資料庫篩選與渲染
 function renderDatabase(data) {
   const tbody = document.getElementById('dbTableBody');
   if (data.length === 0) {
@@ -669,10 +816,10 @@ function renderDatabase(data) {
 function filterDatabase() {
   const q = document.getElementById('dbSearchInput').value.trim().toLowerCase();
   if (!q) {
-    renderDatabase(DISEASE_DATABASE);
+    renderDatabase(activeDatabase);
     return;
   }
-  const filtered = DISEASE_DATABASE.filter(item => 
+  const filtered = activeDatabase.filter(item => 
     item.organ.toLowerCase().includes(q) ||
     item.symptom.toLowerCase().includes(q) ||
     item.disease.toLowerCase().includes(q) ||
