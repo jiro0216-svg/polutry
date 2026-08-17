@@ -1,2 +1,0 @@
-# polutry
-polutry
